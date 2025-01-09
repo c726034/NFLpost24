@@ -1,0 +1,6 @@
+pandas
+numpy
+gspread
+requests
+dash
+gunicorn
