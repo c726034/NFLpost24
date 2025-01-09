@@ -8,13 +8,21 @@ import gspread
 import requests
 import dash
 from dash import dcc, html, dash_table
+import os
+import json
+from google.oauth2.service_account import Credentials
 
 pd.set_option('display.expand_frame_repr', False)  # Prevent line wrapping
 
 
 def main():
+    
+    # Load service account JSON from the RENDER_SECRET environment variable
+    service_account_info = json.loads(os.getenv("RENDER_SECRET"))  # Replace "RENDER_SECRET" with your variable name if different
+    credentials = Credentials.from_service_account_info(service_account_info)
+    gc = gspread.authorize(credentials)
+    
     # Load data from Google Sheets
-    gc = gspread.service_account(filename="service_account.json")
     contestbeta = gc.open("2024 Playoffs - Wild Card (Responses)")
     pickinput = contestbeta.worksheet("Form Responses 1")
     picksraw = pd.DataFrame(pickinput.get_all_records())
