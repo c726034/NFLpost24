@@ -170,39 +170,41 @@ def main():
     picks_results = valid_picks[['name', 'game', 'pick', 'confidence', 'points_won']]
     return game_info, player_scores, picks_results
 
-# Initialize Dash app
-app = dash.Dash(__name__)
-app.layout = html.Div([
-    html.H1("NFL Playoff Contest Results"),
-    html.H2("Game Results"),
-    dash_table.DataTable(
-        data=game_info.to_dict('records'),
-        columns=[{"name": i, "id": i} for i in game_info.columns],
-        style_table={'overflowX': 'auto'},
-        style_cell={'textAlign': 'center', 'padding': '10px'},
-        style_header={'backgroundColor': 'lightblue', 'fontWeight': 'bold'}
-    ),
-    html.H2("Player Score Summary"),
-    dash_table.DataTable(
-        data=player_scores.to_dict('records'),
-        columns=[{"name": i, "id": i} for i in player_scores.columns],
-        style_table={'overflowX': 'auto'},
-        style_cell={'textAlign': 'center', 'padding': '10px'},
-        style_header={'backgroundColor': 'lightblue', 'fontWeight': 'bold'}
-    ),
-    html.H2("Player Picks and Points"),
-    dash_table.DataTable(
-        data=picks_results.to_dict('records'),
-        columns=[{"name": i, "id": i} for i in picks_results.columns],
-        style_table={'overflowX': 'auto'},
-        style_cell={'textAlign': 'center', 'padding': '10px'},
-        style_header={'backgroundColor': 'lightblue', 'fontWeight': 'bold'}
-    )
+# Entry point
+if __name__ == '__main__':
+    # Prepare data
+    game_info, player_scores, picks_results = main()
+
+    # Initialize Dash app
+    app = dash.Dash(__name__)
+    app.layout = html.Div([
+        html.H1("NFL Playoff Contest Results"),
+        html.H2("Game Results"),
+        dash_table.DataTable(
+            data=game_info.to_dict('records'),
+            columns=[{"name": i, "id": i} for i in game_info.columns],
+            style_table={'overflowX': 'auto'},
+            style_cell={'textAlign': 'center', 'padding': '10px'},
+            style_header={'backgroundColor': 'lightblue', 'fontWeight': 'bold'}
+        ),
+        html.H2("Player Score Summary"),
+        dash_table.DataTable(
+            data=player_scores.to_dict('records'),
+            columns=[{"name": i, "id": i} for i in player_scores.columns],
+            style_table={'overflowX': 'auto'},
+            style_cell={'textAlign': 'center', 'padding': '10px'},
+            style_header={'backgroundColor': 'lightblue', 'fontWeight': 'bold'}
+        ),
+        html.H2("Player Picks and Points"),
+        dash_table.DataTable(
+            data=picks_results.to_dict('records'),
+            columns=[{"name": i, "id": i} for i in picks_results.columns],
+            style_table={'overflowX': 'auto'},
+            style_cell={'textAlign': 'center', 'padding': '10px'},
+            style_header={'backgroundColor': 'lightblue', 'fontWeight': 'bold'}
+        )
     ])
 
-if __name__ == '__main__':
-    # Call main and unpack returned values
-    game_info, player_scores, picks_results = main()
-    
+    # Run the Dash app
     port = int(os.environ.get('PORT', 8000))  # Default to 8000 if PORT is not set
     app.run_server(debug=True, host='0.0.0.0', port=port)
