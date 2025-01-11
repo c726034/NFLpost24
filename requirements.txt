@@ -3,4 +3,5 @@ numpy
 gspread
 requests
 dash
+google-auth
 gunicorn

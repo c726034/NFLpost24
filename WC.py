@@ -1,9 +1,11 @@
-import os
-import json
-import gspread
-from google.oauth2.service_account import Credentials
+import pandas as pd
+import numpy as np
+import datetime as dt
+import gspread 
 import dash
 from dash import dcc, html, dash_table
+import json
+from google.oauth2.service_account import Credentials
 
 # Load service account JSON from the Render Secret File
 with open("/etc/secrets/RENDER_SECRET") as f:
@@ -18,72 +20,183 @@ credentials = Credentials.from_service_account_info(
 )
 gc = gspread.authorize(credentials)
 
-# Data Preparation
-# Load your Sheets and process as needed
-# Example placeholder - Replace with your actual logic
-contestbeta = gc.open("2024 Playoffs - Wild Card (Responses)")
-worksheet = contestbeta.sheet1
-data = worksheet.get_all_records()
+pd.set_option('display.expand_frame_repr', False)  # Prevent line wrapping
 
-# Process data
-# Placeholder variables (replace with actual data processing code)
-valid_picks = ...  # Processed data from Google Sheets
-player_confidence = ...  # Derived confidence data
-wc_results = ...  # Results table loaded elsewhere
+def main():
+    contestbeta = gc.open("2024 Playoffs - Wild Card (Responses)")
+    pickinput = contestbeta.worksheet("Form Responses 1")
+    picksraw = pd.DataFrame(pickinput.get_all_records())
 
-# Prepare Game Info Table
-game_info = wc_results[['game', 'away', 'home', 'homeline', 'awaypts', 'homepts', 'winner_ATS']]
+    # Rename columns, drop email and notes
+    picks = picksraw.set_axis(
+        ['timestamp', 'email', 'name', 'afc1', 'afc1con', 'afc2', 'afc2con', 'afc3', 'afc3con',
+         'nfc1', 'nfc1con', 'nfc2', 'nfc2con', 'nfc3', 'nfc3con', 'notes'],
+        axis=1
+    ).drop(columns=['email', 'notes'])
 
-# Prepare Player Scores Table
-player_scores = valid_picks.groupby('name')['points_won'].sum().reset_index(name='total_points')
-player_scores = player_scores.merge(
-    player_confidence[['name', 'remaining_conf']], 
-    on='name', 
-    how='left'
-)
-player_scores['remaining_conf'] = player_scores['remaining_conf'].apply(lambda x: ', '.join(map(str, x)))
+    # Convert timestamp to datetime for sorting
+    picks['timestamp'] = pd.to_datetime(picks['timestamp'])
 
-# Prepare Full Picks Results Table
-picks_results = valid_picks[['name', 'game', 'pick', 'confidence', 'points_won']]
+    # Define the shared deadlines (first kickoff for each day)
+    shared_deadlines = {
+        'saturday': pd.Timestamp('2025-01-11 13:30:00'),  # First Saturday game
+        'sunday': pd.Timestamp('2025-01-12 10:00:00')     # First Sunday game (applies to Monday too)
+    }
 
-# Create Dash App
-app = dash.Dash(__name__)
+    # Map each game to the correct deadline
+    game_deadlines = {
+        'afc1': shared_deadlines['saturday'],
+        'afc2': shared_deadlines['saturday'],
+        'afc3': shared_deadlines['sunday'],
+        'nfc1': shared_deadlines['sunday'],
+        'nfc2': shared_deadlines['sunday'],
+        'nfc3': shared_deadlines['sunday']  # Monday game but same as Sunday deadline
+    }
 
-# Dash Layout
-app.layout = html.Div([
-    html.H1("NFL Playoff Contest Results"),
+    # Pivot to long format, preserving multiple picks
+    picks_long = pd.melt(picks, 
+                         id_vars=['timestamp', 'name'], 
+                         value_vars=['afc1', 'afc2', 'afc3', 'nfc1', 'nfc2', 'nfc3'],
+                         var_name='game', 
+                         value_name='pick')
 
-    # Game Results Table
-    html.H2("Game Results"),
-    dash_table.DataTable(
-        data=game_info.to_dict('records'),
-        columns=[{"name": i, "id": i} for i in game_info.columns],
-        style_table={'overflowX': 'auto'},
-        style_cell={'textAlign': 'center', 'padding': '10px'},
-        style_header={'backgroundColor': 'lightblue', 'fontWeight': 'bold'}
-    ),
+    conf_long = pd.melt(picks,
+                        id_vars=['timestamp', 'name'], 
+                        value_vars=['afc1con', 'afc2con', 'afc3con', 'nfc1con', 'nfc2con', 'nfc3con'],
+                        var_name='game', 
+                        value_name='confidence')
 
-    # Player Scores Summary Table
-    html.H2("Player Score Summary"),
-    dash_table.DataTable(
-        data=player_scores.to_dict('records'),
-        columns=[{"name": i, "id": i} for i in player_scores.columns],
-        style_table={'overflowX': 'auto'},
-        style_cell={'textAlign': 'center', 'padding': '10px'},
-        style_header={'backgroundColor': 'lightblue', 'fontWeight': 'bold'}
-    ),
+    # Clean confidence column names to match picks
+    conf_long['game'] = conf_long['game'].str.replace('con', '')
 
-    # Full Picks Results Table
-    html.H2("Player Picks and Points"),
-    dash_table.DataTable(
-        data=picks_results.to_dict('records'),
-        columns=[{"name": i, "id": i} for i in picks_results.columns],
-        style_table={'overflowX': 'auto'},
-        style_cell={'textAlign': 'center', 'padding': '10px'},
-        style_header={'backgroundColor': 'lightblue', 'fontWeight': 'bold'}
+    # Merge picks with confidence
+    df_merged = pd.merge(picks_long, conf_long, on=['timestamp', 'name', 'game'])
+
+    # Assign deadline based on the game
+    df_merged['deadline'] = df_merged['game'].map(game_deadlines)
+
+    # Flag late picks
+    df_merged['late'] = df_merged['timestamp'] > df_merged['deadline']
+
+    # Sort 
+    df_merged.sort_values(by=['game', 'name', 'timestamp'], inplace=True)
+
+    # Filter to valid picks
+    valid_picks = df_merged[df_merged['timestamp'] <= df_merged['deadline']]
+    valid_picks = valid_picks[valid_picks['pick'] != '']
+    valid_picks = valid_picks.sort_values(by=['timestamp']).groupby(['name', 'game']).tail(1)
+    valid_picks = valid_picks.dropna(subset=['confidence'])
+    valid_picks = valid_picks[valid_picks['confidence'].apply(lambda x: isinstance(x, int))]
+
+    # Define the game order
+    game_order = {'afc1': 1, 'afc2': 2, 'afc3': 3, 'nfc1': 4, 'nfc2': 5, 'nfc3': 6}
+    valid_picks['game_order'] = valid_picks['game'].map(game_order)
+    valid_picks['dupval'] = None
+
+    # Zero out duplicates
+    used_conf = {}
+    for idx, row in valid_picks.iterrows():
+        player = row['name']
+        conf = row['confidence']
+
+        if player not in used_conf:
+            used_conf[player] = set()
+
+        if conf in used_conf[player]:
+            valid_picks.at[idx, 'confidence'] = 0
+            valid_picks.at[idx, 'dupval'] = conf
+        else:
+            used_conf[player].add(conf)
+
+    valid_picks = valid_picks.drop(columns=['game_order'])
+
+    # Confidence tracking
+    valid_picks['adjusted_conf'] = valid_picks.apply(
+        lambda row: row['confidence'] if row['confidence'] != 0 else row['dupval'], axis=1
     )
-])
+    player_confidence = (
+        valid_picks.groupby('name')['adjusted_conf']
+        .apply(lambda x: sorted(list(x)))
+        .reset_index(name='entered_conf')
+    )
 
-# Run the Dash app
-if __name__ == '__main__':
-    app.run_server(debug=True)
+    def zero_duplicates(conf_list):
+        seen = set()
+        effective = []
+        for conf in conf_list:
+            if conf in seen:
+                effective.append(0)
+            else:
+                effective.append(conf)
+                seen.add(conf)
+        return effective
+
+    player_confidence['effective_conf'] = player_confidence['entered_conf'].apply(zero_duplicates)
+
+    def calculate_remaining_conf(effective_conf):
+        all_values = set(range(1, 14))
+        remaining = sorted(all_values - set(effective_conf))
+        for conf in effective_conf:
+            if conf == 0 and remaining:
+                remaining.pop(0)
+        return remaining
+
+    player_confidence['remaining_conf'] = player_confidence['effective_conf'].apply(calculate_remaining_conf)
+
+    # Import game results
+    playoffs_wc = gc.open("2024 Playoffs - Wild Card (Responses)")
+    wc_lines_scores = playoffs_wc.worksheet("lines_scores")
+    wc_results = pd.DataFrame(wc_lines_scores.get_all_records())
+
+    # Score picks
+    if 'winner_ATS' not in valid_picks.columns:
+        valid_picks = valid_picks.merge(wc_results[['game', 'winner_ATS', 'complete']], on='game', how='left')
+    valid_picks['correct'] = (valid_picks['pick'] == valid_picks['winner_ATS']).astype(int)
+    valid_picks['points_won'] = valid_picks['confidence'] * (
+        (valid_picks['winner_ATS'] == 'Push') * 0.5 + valid_picks['correct']
+    )
+    valid_picks = valid_picks[valid_picks['complete'] == 1]
+
+    # Prepare data for Dash display
+    game_info = wc_results[['game', 'away', 'home', 'homeline', 'awaypts', 'homepts', 'winner_ATS']]
+    player_scores = valid_picks.groupby('name')['points_won'].sum().reset_index(name='total_points')
+    player_scores = player_scores.merge(
+        player_confidence[['name', 'remaining_conf']],
+        on='name',
+        how='left'
+    )
+    player_scores['remaining_conf'] = player_scores['remaining_conf'].apply(lambda x: ', '.join(map(str, x)))
+    picks_results = valid_picks[['name', 'game', 'pick', 'confidence', 'points_won']]
+
+# Initialize Dash app
+    app = dash.Dash(__name__)
+    app.layout = html.Div([
+        html.H1("NFL Playoff Contest Results"),
+        html.H2("Game Results"),
+        dash_table.DataTable(
+            data=game_info.to_dict('records'),
+            columns=[{"name": i, "id": i} for i in game_info.columns],
+            style_table={'overflowX': 'auto'},
+            style_cell={'textAlign': 'center', 'padding': '10px'},
+            style_header={'backgroundColor': 'lightblue', 'fontWeight': 'bold'}
+        ),
+        html.H2("Player Score Summary"),
+        dash_table.DataTable(
+            data=player_scores.to_dict('records'),
+            columns=[{"name": i, "id": i} for i in player_scores.columns],
+            style_table={'overflowX': 'auto'},
+            style_cell={'textAlign': 'center', 'padding': '10px'},
+            style_header={'backgroundColor': 'lightblue', 'fontWeight': 'bold'}
+        ),
+        html.H2("Player Picks and Points"),
+        dash_table.DataTable(
+            data=picks_results.to_dict('records'),
+            columns=[{"name": i, "id": i} for i in picks_results.columns],
+            style_table={'overflowX': 'auto'},
+            style_cell={'textAlign': 'center', 'padding': '10px'},
+            style_header={'backgroundColor': 'lightblue', 'fontWeight': 'bold'}
+        )
+    ])
+
+    # Run the Dash app
+    app.run_server(debug=True, host='0.0.0.0', port=8000)
