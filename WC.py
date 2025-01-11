@@ -21,7 +21,10 @@ def main():
     with open("/etc/secrets/RENDER_SECRET") as f:  # Adjust to match your secret file name
         service_account_info = json.load(f)
 
-    credentials = Credentials.from_service_account_info(service_account_info)
+    credentials = Credentials.from_service_account_info(
+        service_account_info,
+        scopes=["https://www.googleapis.com/auth/spreadsheets"]
+    )
     gc = gspread.authorize(credentials)
 
     
