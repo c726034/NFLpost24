@@ -17,10 +17,13 @@ pd.set_option('display.expand_frame_repr', False)  # Prevent line wrapping
 
 def main():
     
-    # Load service account JSON from the RENDER_SECRET environment variable
-    service_account_info = json.loads(os.getenv("RENDER_SECRET"))  # Replace "RENDER_SECRET" with your variable name if different
+    # Load service account JSON from the Render Secret File
+    with open("/etc/secrets/RENDER_SECRET") as f:  # Adjust to match your secret file name
+        service_account_info = json.load(f)
+
     credentials = Credentials.from_service_account_info(service_account_info)
     gc = gspread.authorize(credentials)
+
     
     # Load data from Google Sheets
     contestbeta = gc.open("2024 Playoffs - Wild Card (Responses)")
