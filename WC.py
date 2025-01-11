@@ -24,7 +24,7 @@ gc = gspread.authorize(credentials)
 pd.set_option('display.expand_frame_repr', False)  # Prevent line wrapping
 
 def main():
-    contestbeta = gc.open("2024 Playoffs - Wild Card (Responses)")
+    contestbeta = gc.open("2025 Playoffs - Wild Card (Responses)")
     pickinput = contestbeta.worksheet("Form Responses 1")
     picksraw = pd.DataFrame(pickinput.get_all_records())
 
