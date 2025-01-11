@@ -18,14 +18,18 @@ pd.set_option('display.expand_frame_repr', False)  # Prevent line wrapping
 def main():
     
     # Load service account JSON from the Render Secret File
-    with open("/etc/secrets/RENDER_SECRET") as f:  # Adjust to match your secret file name
+    with open("/etc/secrets/RENDER_SECRET") as f:
         service_account_info = json.load(f)
 
     credentials = Credentials.from_service_account_info(
         service_account_info,
-        scopes=["https://www.googleapis.com/auth/spreadsheets"]
+        scopes=[
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive"
+        ]
     )
     gc = gspread.authorize(credentials)
+
 
     
     # Load data from Google Sheets
