@@ -168,6 +168,7 @@ def main():
     )
     player_scores['remaining_conf'] = player_scores['remaining_conf'].apply(lambda x: ', '.join(map(str, x)))
     picks_results = valid_picks[['name', 'game', 'pick', 'confidence', 'points_won']]
+    return game_info, player_scores, picks_results
 
 # Initialize Dash app
 app = dash.Dash(__name__)
@@ -198,7 +199,10 @@ app.layout = html.Div([
         style_header={'backgroundColor': 'lightblue', 'fontWeight': 'bold'}
     )
     ])
-# Run the Dash app
+
 if __name__ == '__main__':
+    # Call main and unpack returned values
+    game_info, player_scores, picks_results = main()
+    
     port = int(os.environ.get('PORT', 8000))  # Default to 8000 if PORT is not set
     app.run_server(debug=True, host='0.0.0.0', port=port)
