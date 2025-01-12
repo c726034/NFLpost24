@@ -145,7 +145,7 @@ def main():
     player_confidence['remaining_conf'] = player_confidence['effective_conf'].apply(calculate_remaining_conf)
 
     # Import game results
-    playoffs_wc = gc.open("2025 Playoffs - Wild Card (Responses)")
+    playoffs_wc = gc.open("2024 Playoffs - Wild Card (Responses)")
     wc_lines_scores = playoffs_wc.worksheet("lines_scores")
     wc_results = pd.DataFrame(wc_lines_scores.get_all_records())
 
@@ -219,7 +219,7 @@ app.layout = html.Div([
         style_cell={'textAlign': 'center', 'padding': '10px'},
         style_header={'backgroundColor': 'lightblue', 'fontWeight': 'bold'}
     )
-])
+], style={'fontFamily': 'Arial, sans-serif'})
 
 # Run the Dash app
 if __name__ == '__main__':
