@@ -196,12 +196,12 @@ def main():
     # Rename columns for clarity
     picks_results_pivot = picks_results_pivot.rename(columns={'total_points': 'Points Scored'})
 
-    return game_info, player_scores, picks_results
+    return game_info, player_scores, picks_results_pivot
 
 # Entry point
 if __name__ == '__main__':
     # Prepare data
-    game_info, player_scores, picks_results = main()
+    game_info, player_scores, picks_results_pivot = main()
 
     # Initialize Dash app
     app = dash.Dash(__name__)
@@ -215,16 +215,16 @@ if __name__ == '__main__':
             style_cell={'textAlign': 'center', 'padding': '10px'},
             style_header={'backgroundColor': 'lightblue', 'fontWeight': 'bold'}
         ),
-        html.H2("Player Score Summary"),
+        html.H2("Player Picks and Points"),
         dash_table.DataTable(
-            data=player_scores.to_dict('records'),
-            columns=[{"name": i, "id": i} for i in player_scores.columns],
+            data=picks_results_pivot.to_dict('records'),
+            columns=[{"name": i, "id": i} for i in picks_results_pivot.columns],
             style_table={'overflowX': 'auto'},
             style_cell={'textAlign': 'center', 'padding': '10px'},
             style_header={'backgroundColor': 'lightblue', 'fontWeight': 'bold'}
         ),
         dash_table.DataTable(
-            data=picks_results.to_dict('records'),
+            data=picks_results_pivot.to_dict('records'),
             columns=[
                 {"name": "Player", "id": "name"},
                 {"name": "Game", "id": "game"},
