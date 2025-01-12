@@ -156,18 +156,46 @@ def main():
     valid_picks['points_won'] = valid_picks['confidence'] * (
         (valid_picks['winner_ATS'] == 'Push') * 0.5 + valid_picks['correct']
     )
+
+    # Mark points_won as None for unscored games
+    valid_picks['points_won'] = valid_picks.apply(
+        lambda row: row['points_won'] if row['complete'] else None,  # Set points_won to None for unscored games
+        axis=1
+    )
+
+    # Filter only completed games (optional: for scoring-related analysis only)
     valid_picks = valid_picks[valid_picks['complete'] == 1]
 
     # Prepare data for Dash display
     game_info = wc_results[['game', 'away', 'home', 'homeline', 'awaypts', 'homepts', 'winner_ATS']]
+    
+    # Player Score Summary: Sorted in descending order by points scored
     player_scores = valid_picks.groupby('name')['points_won'].sum().reset_index(name='total_points')
+    player_scores = player_scores.sort_values(by='total_points', ascending=False).reset_index(drop=True)
+
     player_scores = player_scores.merge(
         player_confidence[['name', 'remaining_conf']],
         on='name',
         how='left'
     )
     player_scores['remaining_conf'] = player_scores['remaining_conf'].apply(lambda x: ', '.join(map(str, x)))
-    picks_results = valid_picks[['name', 'game', 'pick', 'confidence', 'points_won']]
+    # Reformat Player Picks and Points: One row per player, games as columns
+    # Create a new column combining pick and confidence
+    valid_picks['pick_conf'] = valid_picks['pick'] + " (" + valid_picks['confidence'].astype(str) + ")"
+
+    # Pivot the table: Players as rows, games as columns
+    picks_results_pivot = valid_picks.pivot(index='name', columns='game', values='pick_conf').reset_index()
+
+    # Add Points Scored column
+    picks_results_pivot = picks_results_pivot.merge(
+        player_scores[['name', 'total_points']],
+        on='name',
+        how='left'
+    )
+
+    # Rename columns for clarity
+    picks_results_pivot = picks_results_pivot.rename(columns={'total_points': 'Points Scored'})
+
     return game_info, player_scores, picks_results
 
 # Entry point
@@ -195,15 +223,21 @@ if __name__ == '__main__':
             style_cell={'textAlign': 'center', 'padding': '10px'},
             style_header={'backgroundColor': 'lightblue', 'fontWeight': 'bold'}
         ),
-        html.H2("Player Picks and Points"),
         dash_table.DataTable(
             data=picks_results.to_dict('records'),
-            columns=[{"name": i, "id": i} for i in picks_results.columns],
+            columns=[
+                {"name": "Player", "id": "name"},
+                {"name": "Game", "id": "game"},
+                {"name": "Pick", "id": "pick"},
+                {"name": "Confidence", "id": "confidence"},
+                {"name": "Points Won", "id": "points_won"}
+            ],
             style_table={'overflowX': 'auto'},
             style_cell={'textAlign': 'center', 'padding': '10px'},
             style_header={'backgroundColor': 'lightblue', 'fontWeight': 'bold'}
         )
-    ])
+
+    ], style={'fontFamily': 'Arial, sans-serif'})
 
     # Run the Dash app
     port = int(os.environ.get('PORT', 8000))  # Default to 8000 if PORT is not set
