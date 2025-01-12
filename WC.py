@@ -170,13 +170,20 @@ def main():
     )
     player_scores['remaining_conf'] = player_scores['remaining_conf'].apply(lambda x: ', '.join(map(str, x)))
 
+    # Create a column with pick and confidence formatted together
+    valid_picks['pick_with_conf'] = valid_picks.apply(
+        lambda row: f"{row['pick']} ({row['confidence']})" if pd.notnull(row['confidence']) else "-", axis=1
+    )
+
+    # Pivot the table with formatted pick and confidence
     picks_results_pivot = valid_picks.pivot(
         index='name',
         columns='game',
-        values='confidence'
+        values='pick_with_conf'
     )
 
     picks_results_pivot.fillna('-', inplace=True)  # Placeholder for unmade picks
+
 
     return game_info, player_scores, picks_results_pivot
 
