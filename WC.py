@@ -178,7 +178,7 @@ def main():
     )
     player_scores['remaining_conf'] = player_scores['remaining_conf'].apply(lambda x: ', '.join(map(str, x)))
 
-    # Sort player scores descending
+    # Sort player_scores by total_points descending
     player_scores = player_scores.sort_values(by='total_points', ascending=False)
 
     # Create a column with pick and confidence formatted together
@@ -203,18 +203,23 @@ def main():
 
     picks_results_pivot.fillna('-', inplace=True)  # Placeholder for unmade picks
 
-    return game_info, player_scores, picks_results_pivot, status_pivot
+    # Merge status into picks_results_pivot for conditional styling
+    picks_results_pivot_with_status = picks_results_pivot.copy()
+    for col in status_pivot.columns:
+        picks_results_pivot_with_status[col + '_status'] = status_pivot[col]
+
+    return game_info, player_scores, picks_results_pivot_with_status
 
 # Initialize Dash app
 app = dash.Dash(__name__)
 
 # Call main and unpack returned values
-game_info, player_scores, picks_results_pivot, status_pivot = main()
+game_info, player_scores, picks_results_pivot_with_status = main()
 
 app.layout = html.Div([
-    html.H1("Degen Playoff Contest"),
+    html.H1("NFL Playoff Contest Results"),
 
-    html.H2("Game Outcomes"),
+    html.H2("Game Results"),
     dash_table.DataTable(
         data=game_info.to_dict('records'),
         columns=[{"name": i, "id": i} for i in game_info.columns],
@@ -236,31 +241,31 @@ app.layout = html.Div([
         style_header={'backgroundColor': 'lightblue', 'fontWeight': 'bold'}
     ),
 
-    html.H2("Picks & Results"),
+    html.H2("Player Picks and Points"),
     dash_table.DataTable(
-        data=picks_results_pivot.reset_index().to_dict('records'),
-        columns=[{"name": i, "id": i} for i in picks_results_pivot.reset_index().columns],
+        data=picks_results_pivot_with_status.reset_index().to_dict('records'),
+        columns=[{"name": i, "id": i} for i in picks_results_pivot_with_status.reset_index().columns],
         style_table={'overflowX': 'auto'},
         style_cell={'textAlign': 'center', 'padding': '10px'},
         style_header={'backgroundColor': 'lightblue', 'fontWeight': 'bold'},
         style_data_conditional=[
             {
                 'if': {
-                    'filter_query': '{{{col}}} = "correct"'.format(col=col),
+                    'filter_query': '{{{col}_status}} = "correct"'.format(col=col),
                     'column_id': col
                 },
                 'backgroundColor': 'lightgreen',
                 'color': 'black',
-            } for col in picks_results_pivot.columns
+            } for col in picks_results_pivot_with_status.columns if not col.endswith('_status')
         ] + [
             {
                 'if': {
-                    'filter_query': '{{{col}}} = "incorrect"'.format(col=col),
+                    'filter_query': '{{{col}_status}} = "incorrect"'.format(col=col),
                     'column_id': col
                 },
                 'backgroundColor': 'lightcoral',
                 'color': 'black',
-            } for col in picks_results_pivot.columns
+            } for col in picks_results_pivot_with_status.columns if not col.endswith('_status')
         ]
     )
 ], style={'fontFamily': 'Arial, sans-serif'})
