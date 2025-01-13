@@ -172,11 +172,28 @@ def main():
     game_info = wc_results[['game', 'away', 'home', 'homeline', 'awaypts', 'homepts', 'winner_ATS']]
     player_scores = valid_picks.groupby('name')['points_won'].sum().reset_index(name='score')
 
-    # Calculate additional scoreboard metrics
-    points_used = valid_picks.loc[valid_picks['late'], :].groupby('name')['confidence'].sum().reset_index(name='points_used')
-    points_remaining = 91 - points_used['points_used']
-    points_used['points_remaining'] = points_remaining
-    points_used['efficiency'] = points_used['points_used'] / player_scores['score']
+    # Calculate points used, handle case with no late picks
+    if valid_picks['late'].any():
+        points_used = valid_picks.loc[valid_picks['late'], :].groupby('name')['confidence'].sum().reset_index(name='points_used')
+    else:
+        points_used = pd.DataFrame({'name': player_scores['name'], 'points_used': 0})
+
+    # Calculate points remaining
+    points_used['points_remaining'] = 91 - points_used['points_used']
+
+    # Calculate efficiency, avoid division by zero
+    points_used = points_used.merge(player_scores[['name', 'score']], on='name', how='left')
+    points_used['efficiency'] = points_used.apply(
+        lambda row: row['points_used'] / row['score'] if row['score'] > 0 else 0, axis=1
+    )
+
+    # # Debugging outputs to confirm calculations
+    # print("Points Used DataFrame:")
+    # print(points_used.head())
+
+    # print("Player Scores with Efficiency:")
+    # print(player_scores.head())
+
 
     player_scores = player_scores.merge(points_used, on='name', how='left')
     player_scores['remaining_conf'] = player_confidence['remaining_conf'].apply(lambda x: ', '.join(map(str, x)))
