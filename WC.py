@@ -160,6 +160,14 @@ def main():
         np.nan  # NaN for incomplete games
     )
 
+    # Add a status column for conditional styling
+    valid_picks['status'] = valid_picks.apply(
+        lambda row: 'correct' if row['points_won'] > 0 else (
+            'incorrect' if row['points_won'] == 0 else 'pending'
+        ),
+        axis=1
+    )
+
     # Prepare data for Dash display
     game_info = wc_results[['game', 'away', 'home', 'homeline', 'awaypts', 'homepts', 'winner_ATS']]
     player_scores = valid_picks.groupby('name')['points_won'].sum().reset_index(name='total_points')
@@ -170,9 +178,13 @@ def main():
     )
     player_scores['remaining_conf'] = player_scores['remaining_conf'].apply(lambda x: ', '.join(map(str, x)))
 
+    # Sort player scores descending
+    player_scores = player_scores.sort_values(by='total_points', ascending=False)
+
     # Create a column with pick and confidence formatted together
     valid_picks['pick_with_conf'] = valid_picks.apply(
-        lambda row: f"{row['pick']} ({row['confidence']})" if pd.notnull(row['confidence']) else "-", axis=1
+        lambda row: f"{row['pick']} ({row['confidence']})" if pd.notnull(row['confidence']) else "-",
+        axis=1
     )
 
     # Pivot the table with formatted pick and confidence
@@ -182,21 +194,27 @@ def main():
         values='pick_with_conf'
     )
 
+    # Pivot the table with statuses for conditional styling
+    status_pivot = valid_picks.pivot(
+        index='name',
+        columns='game',
+        values='status'
+    )
+
     picks_results_pivot.fillna('-', inplace=True)  # Placeholder for unmade picks
 
-
-    return game_info, player_scores, picks_results_pivot
+    return game_info, player_scores, picks_results_pivot, status_pivot
 
 # Initialize Dash app
 app = dash.Dash(__name__)
 
 # Call main and unpack returned values
-game_info, player_scores, picks_results_pivot = main()
+game_info, player_scores, picks_results_pivot, status_pivot = main()
 
 app.layout = html.Div([
-    html.H1("NFL Playoff Contest Results"),
+    html.H1("Degen Playoff Contest"),
 
-    html.H2("Game Results"),
+    html.H2("Game Outcomes"),
     dash_table.DataTable(
         data=game_info.to_dict('records'),
         columns=[{"name": i, "id": i} for i in game_info.columns],
@@ -205,7 +223,7 @@ app.layout = html.Div([
         style_header={'backgroundColor': 'lightblue', 'fontWeight': 'bold'}
     ),
 
-    html.H2("Player Score Summary"),
+    html.H2("Scoreboard"),
     dash_table.DataTable(
         data=player_scores.to_dict('records'),
         columns=[
@@ -218,13 +236,32 @@ app.layout = html.Div([
         style_header={'backgroundColor': 'lightblue', 'fontWeight': 'bold'}
     ),
 
-    html.H2("Player Picks and Points"),
+    html.H2("Picks & Results"),
     dash_table.DataTable(
         data=picks_results_pivot.reset_index().to_dict('records'),
         columns=[{"name": i, "id": i} for i in picks_results_pivot.reset_index().columns],
         style_table={'overflowX': 'auto'},
         style_cell={'textAlign': 'center', 'padding': '10px'},
-        style_header={'backgroundColor': 'lightblue', 'fontWeight': 'bold'}
+        style_header={'backgroundColor': 'lightblue', 'fontWeight': 'bold'},
+        style_data_conditional=[
+            {
+                'if': {
+                    'filter_query': '{{{col}}} = "correct"'.format(col=col),
+                    'column_id': col
+                },
+                'backgroundColor': 'lightgreen',
+                'color': 'black',
+            } for col in picks_results_pivot.columns
+        ] + [
+            {
+                'if': {
+                    'filter_query': '{{{col}}} = "incorrect"'.format(col=col),
+                    'column_id': col
+                },
+                'backgroundColor': 'lightcoral',
+                'color': 'black',
+            } for col in picks_results_pivot.columns
+        ]
     )
 ], style={'fontFamily': 'Arial, sans-serif'})
 
