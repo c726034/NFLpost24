@@ -170,16 +170,19 @@ def main():
 
     # Prepare data for Dash display
     game_info = wc_results[['game', 'away', 'home', 'homeline', 'awaypts', 'homepts', 'winner_ATS']]
-    player_scores = valid_picks.groupby('name')['points_won'].sum().reset_index(name='total_points')
-    player_scores = player_scores.merge(
-        player_confidence[['name', 'remaining_conf']],
-        on='name',
-        how='left'
-    )
-    player_scores['remaining_conf'] = player_scores['remaining_conf'].apply(lambda x: ', '.join(map(str, x)))
+    player_scores = valid_picks.groupby('name')['points_won'].sum().reset_index(name='score')
 
-    # Sort player_scores by total_points descending
-    player_scores = player_scores.sort_values(by='total_points', ascending=False)
+    # Calculate additional scoreboard metrics
+    points_used = valid_picks.loc[valid_picks['late'], :].groupby('name')['confidence'].sum().reset_index(name='points_used')
+    points_remaining = 91 - points_used['points_used']
+    points_used['points_remaining'] = points_remaining
+    points_used['efficiency'] = points_used['points_used'] / player_scores['score']
+
+    player_scores = player_scores.merge(points_used, on='name', how='left')
+    player_scores['remaining_conf'] = player_confidence['remaining_conf'].apply(lambda x: ', '.join(map(str, x)))
+
+    # Sort player_scores by score descending
+    player_scores = player_scores.sort_values(by='score', ascending=False)
 
     # Create a column with pick and confidence formatted together
     valid_picks['pick_with_conf'] = valid_picks.apply(
@@ -233,8 +236,10 @@ app.layout = html.Div([
         data=player_scores.to_dict('records'),
         columns=[
             {"name": "Name", "id": "name"},
-            {"name": "Total Points", "id": "total_points"},
-            {"name": "Remaining Confidence Points", "id": "remaining_conf"}
+            {"name": "Score", "id": "score"},
+            {"name": "Points Used", "id": "points_used"},
+            {"name": "Points Remaining", "id": "points_remaining"},
+            {"name": "Efficiency", "id": "efficiency"},
         ],
         style_table={'overflowX': 'auto'},
         style_cell={'textAlign': 'center', 'padding': '10px'},
