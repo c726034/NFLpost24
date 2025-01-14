@@ -152,25 +152,20 @@ def main():
     # Score picks
     valid_picks = valid_picks.merge(wc_results[['game', 'winner_ATS', 'complete']], on='game', how='left')
 
+    # Calculate points_won, default to 0 for incomplete games
     valid_picks['points_won'] = np.where(
         valid_picks['complete'] == 1,
         valid_picks['confidence'] * (
             (valid_picks['winner_ATS'] == 'Push') * 0.5 + (valid_picks['pick'] == valid_picks['winner_ATS']).astype(int)
         ),
-        np.nan  # NaN for incomplete games
+        0  # Default to 0 if the game is incomplete
     )
 
-    # Add a status column for conditional styling
-    valid_picks['status'] = valid_picks.apply(
-        lambda row: 'correct' if row['points_won'] > 0 else (
-            'incorrect' if row['points_won'] == 0 else 'pending'
-        ),
-        axis=1
-    )
-
-    # Prepare data for Dash display
-    game_info = wc_results[['game', 'away', 'home', 'homeline', 'awaypts', 'homepts', 'winner_ATS']]
-    player_scores = valid_picks.groupby('name')['points_won'].sum().reset_index(name='score')
+    # Create player_scores, handle case where no valid scores exist
+    if valid_picks['points_won'].notnull().any():
+        player_scores = valid_picks.groupby('name')['points_won'].sum().reset_index(name='score')
+    else:
+        player_scores = pd.DataFrame({'name': valid_picks['name'].unique(), 'score': 0})
 
     # Calculate points used, handle case with no late picks
     if valid_picks['late'].any():
@@ -178,23 +173,14 @@ def main():
     else:
         points_used = pd.DataFrame({'name': player_scores['name'], 'points_used': 0})
 
-    # Calculate points remaining
+    # Merge points_used with player_scores and calculate efficiency
+    points_used = points_used.merge(player_scores[['name', 'score']], on='name', how='left').fillna({'score': 0})
     points_used['points_remaining'] = 91 - points_used['points_used']
-
-    # Calculate efficiency, avoid division by zero
-    points_used = points_used.merge(player_scores[['name', 'score']], on='name', how='left')
     points_used['efficiency'] = points_used.apply(
         lambda row: row['points_used'] / row['score'] if row['score'] > 0 else 0, axis=1
     )
 
-    # # Debugging outputs to confirm calculations
-    # print("Points Used DataFrame:")
-    # print(points_used.head())
-
-    # print("Player Scores with Efficiency:")
-    # print(player_scores.head())
-
-
+    # Merge points_used back into player_scores
     player_scores = player_scores.merge(points_used, on='name', how='left')
     player_scores['remaining_conf'] = player_confidence['remaining_conf'].apply(lambda x: ', '.join(map(str, x)))
 
