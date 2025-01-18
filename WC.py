@@ -214,31 +214,25 @@ def main():
         axis=1
     )
 
-    # Debugging step: Print status assignment and pivot contents
-    print(valid_picks[['game', 'pick', 'winner_ATS', 'status']].head())
-
+    # Include status in the pivot for color coding
     picks_results_pivot_with_status = valid_picks.pivot(
         index='name',
         columns='game',
-        values='display'
+        values=['display', 'status']
     ).fillna('-')
 
-    status_pivot = valid_picks.pivot(
-        index='name',
-        columns='game',
-        values='status'
-    )
+    picks_results_pivot_with_status.columns = [
+        f"{col[1]}_{col[0]}" if col[0] == 'status' else col[1]
+        for col in picks_results_pivot_with_status.columns
+    ]
 
-    print("Status Pivot:")
-    print(status_pivot.head())
-
-    return game_info, player_scores, picks_results_pivot_with_status, status_pivot
+    return game_info.drop(columns=['complete']), player_scores, picks_results_pivot_with_status
 
 # Initialize Dash app
 app = dash.Dash(__name__)
 
 # Call main and unpack returned values
-game_info, player_scores, picks_results_pivot_with_status, status_pivot = main()
+game_info, player_scores, picks_results_pivot_with_status = main()
 
 app.layout = html.Div([
     html.H1("NFL Playoff Contest Results"),
@@ -268,28 +262,28 @@ app.layout = html.Div([
     html.H2("Player Picks and Points"),
     dash_table.DataTable(
         data=picks_results_pivot_with_status.reset_index().to_dict('records'),
-        columns=[{"name": i, "id": i} for i in picks_results_pivot_with_status.reset_index().columns if not i.endswith('_status')],
+        columns=[{"name": i, "id": i} for i in picks_results_pivot_with_status.reset_index().columns],
         style_table={'overflowX': 'auto'},
         style_cell={'textAlign': 'center', 'padding': '10px'},
         style_header={'backgroundColor': 'lightblue', 'fontWeight': 'bold'},
         style_data_conditional=[
             {
                 'if': {
-                    'filter_query': '{{{col}_status}} = "correct"'.format(col=col),
+                    'filter_query': f'{{{col}_status}} = "correct"',
                     'column_id': col
                 },
                 'backgroundColor': 'lightgreen',
                 'color': 'black',
-            } for col in picks_results_pivot_with_status.columns if not col.endswith('_status')
+            } for col in picks_results_pivot_with_status.columns if '_status' not in col
         ] + [
             {
                 'if': {
-                    'filter_query': '{{{col}_status}} = "incorrect"'.format(col=col),
+                    'filter_query': f'{{{col}_status}} = "incorrect"',
                     'column_id': col
                 },
                 'backgroundColor': 'lightcoral',
                 'color': 'black',
-            } for col in picks_results_pivot_with_status.columns if not col.endswith('_status')
+            } for col in picks_results_pivot_with_status.columns if '_status' not in col
         ]
     )
 ], style={'fontFamily': 'Arial, sans-serif'})
