@@ -94,7 +94,7 @@ def main():
     df_merged = pd.merge(picks_long, conf_long, on=['timestamp', 'name', 'game'])
 
     # Scrub pick data to extract only the team name
-    df_merged['pick'] = df_merged['pick'].str.extract(r'^\w+')
+    df_merged['pick'] = df_merged['pick'].str.extract(r'^(\w+)')
 
     # Assign deadline based on the game
     df_merged['deadline'] = df_merged['game'].map(game_deadlines)
