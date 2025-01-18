@@ -24,46 +24,66 @@ gc = gspread.authorize(credentials)
 pd.set_option('display.expand_frame_repr', False)  # Prevent line wrapping
 
 def main():
+    # Wild Card picks
     contestbeta = gc.open("2025 Playoffs - Wild Card (Responses)")
     pickinput = contestbeta.worksheet("Form Responses 1")
     picksraw = pd.DataFrame(pickinput.get_all_records())
 
-    # Rename columns, drop email and notes
+    # Divisional picks
+    divisional_contest = gc.open("2025 Playoffs - Divisional (Responses)")
+    divisional_input = divisional_contest.worksheet("Form Responses 1")
+    divisional_raw = pd.DataFrame(divisional_input.get_all_records())
+
+    # Rename and process Wild Card picks
     picks = picksraw.set_axis(
         ['timestamp', 'email', 'name', 'afc1', 'afc1con', 'afc2', 'afc2con', 'afc3', 'afc3con',
          'nfc1', 'nfc1con', 'nfc2', 'nfc2con', 'nfc3', 'nfc3con', 'notes'],
         axis=1
     ).drop(columns=['email', 'notes'])
-
-    # Convert timestamp to datetime for sorting
     picks['timestamp'] = pd.to_datetime(picks['timestamp'])
 
-    # Define the shared deadlines (first kickoff for each day)
-    shared_deadlines = {
-        'saturday': pd.Timestamp('2025-01-11 13:30:00'),  # First Saturday game
-        'sunday': pd.Timestamp('2025-01-12 10:00:00')     # First Sunday game (applies to Monday too)
+    # Rename and process Divisional picks
+    divisional_picks = divisional_raw.set_axis(
+        ['timestamp', 'email', 'name', 'afc4', 'afc4con', 'nfc4', 'nfc4con', 'nfc5', 'nfc5con', 'afc5', 'afc5con', 'notes'],
+        axis=1
+    ).drop(columns=['email', 'notes'])
+    divisional_picks['timestamp'] = pd.to_datetime(divisional_picks['timestamp'])
+
+    # Combine both rounds of picks
+    combined_picks = pd.concat([picks, divisional_picks], ignore_index=True)
+
+    # Define deadlines for Wild Card and Divisional rounds
+    wild_card_deadlines = {
+        'afc1': pd.Timestamp('2025-01-11 13:30:00'),
+        'afc2': pd.Timestamp('2025-01-11 13:30:00'),
+        'afc3': pd.Timestamp('2025-01-12 10:00:00'),
+        'nfc1': pd.Timestamp('2025-01-12 10:00:00'),
+        'nfc2': pd.Timestamp('2025-01-12 10:00:00'),
+        'nfc3': pd.Timestamp('2025-01-12 10:00:00')
     }
 
-    # Map each game to the correct deadline
-    game_deadlines = {
-        'afc1': shared_deadlines['saturday'],
-        'afc2': shared_deadlines['saturday'],
-        'afc3': shared_deadlines['sunday'],
-        'nfc1': shared_deadlines['sunday'],
-        'nfc2': shared_deadlines['sunday'],
-        'nfc3': shared_deadlines['sunday']  # Monday game but same as Sunday deadline
+    divisional_deadlines = {
+        'afc4': pd.Timestamp('2025-01-18 13:30:00'),
+        'nfc4': pd.Timestamp('2025-01-18 13:30:00'),
+        'nfc5': pd.Timestamp('2025-01-19 12:00:00'),
+        'afc5': pd.Timestamp('2025-01-19 12:00:00')
     }
+
+    # Combine deadlines
+    game_deadlines = {**wild_card_deadlines, **divisional_deadlines}
 
     # Pivot to long format, preserving multiple picks
-    picks_long = pd.melt(picks, 
+    picks_long = pd.melt(combined_picks, 
                          id_vars=['timestamp', 'name'], 
-                         value_vars=['afc1', 'afc2', 'afc3', 'nfc1', 'nfc2', 'nfc3'],
+                         value_vars=['afc1', 'afc2', 'afc3', 'nfc1', 'nfc2', 'nfc3',
+                                     'afc4', 'nfc4', 'nfc5', 'afc5'],
                          var_name='game', 
                          value_name='pick')
 
-    conf_long = pd.melt(picks,
+    conf_long = pd.melt(combined_picks,
                         id_vars=['timestamp', 'name'], 
-                        value_vars=['afc1con', 'afc2con', 'afc3con', 'nfc1con', 'nfc2con', 'nfc3con'],
+                        value_vars=['afc1con', 'afc2con', 'afc3con', 'nfc1con', 'nfc2con', 'nfc3con',
+                                    'afc4con', 'nfc4con', 'nfc5con', 'afc5con'],
                         var_name='game', 
                         value_name='confidence')
 
@@ -72,6 +92,9 @@ def main():
 
     # Merge picks with confidence
     df_merged = pd.merge(picks_long, conf_long, on=['timestamp', 'name', 'game'])
+
+    # Scrub pick data to extract only the team name
+    df_merged['pick'] = df_merged['pick'].str.extract(r'^(\w+)')
 
     # Assign deadline based on the game
     df_merged['deadline'] = df_merged['game'].map(game_deadlines)
@@ -90,7 +113,10 @@ def main():
     valid_picks = valid_picks[valid_picks['confidence'].apply(lambda x: isinstance(x, int))]
 
     # Define the game order
-    game_order = {'afc1': 1, 'afc2': 2, 'afc3': 3, 'nfc1': 4, 'nfc2': 5, 'nfc3': 6}
+    game_order = {
+        'afc1': 1, 'afc2': 2, 'afc3': 3, 'nfc1': 4, 'nfc2': 5, 'nfc3': 6,
+        'afc4': 7, 'nfc4': 8, 'nfc5': 9, 'afc5': 10
+    }
     valid_picks['game_order'] = valid_picks['game'].map(game_order)
     valid_picks['dupval'] = None
 
@@ -111,104 +137,7 @@ def main():
 
     valid_picks = valid_picks.drop(columns=['game_order'])
 
-    # Confidence tracking
-    valid_picks['adjusted_conf'] = valid_picks.apply(
-        lambda row: row['confidence'] if row['confidence'] != 0 else row['dupval'], axis=1
-    )
-    player_confidence = (
-        valid_picks.groupby('name')['adjusted_conf']
-        .apply(lambda x: sorted(list(x)))
-        .reset_index(name='entered_conf')
-    )
-
-    def zero_duplicates(conf_list):
-        seen = set()
-        effective = []
-        for conf in conf_list:
-            if conf in seen:
-                effective.append(0)
-            else:
-                effective.append(conf)
-                seen.add(conf)
-        return effective
-
-    player_confidence['effective_conf'] = player_confidence['entered_conf'].apply(zero_duplicates)
-
-    def calculate_remaining_conf(effective_conf):
-        all_values = set(range(1, 14))
-        remaining = sorted(all_values - set(effective_conf))
-        for conf in effective_conf:
-            if conf == 0 and remaining:
-                remaining.pop(0)
-        return remaining
-
-    player_confidence['remaining_conf'] = player_confidence['effective_conf'].apply(calculate_remaining_conf)
-
-    # Import game results
-    playoffs_wc = gc.open("2025 Playoffs - Wild Card (Responses)")
-    wc_lines_scores = playoffs_wc.worksheet("lines_scores")
-    wc_results = pd.DataFrame(wc_lines_scores.get_all_records())
-
-    # Score picks
-    valid_picks = valid_picks.merge(wc_results[['game', 'winner_ATS', 'complete']], on='game', how='left')
-
-    valid_picks['points_won'] = np.where(
-        valid_picks['complete'] == 1,
-        valid_picks['confidence'] * (
-            (valid_picks['winner_ATS'] == 'Push') * 0.5 + (valid_picks['pick'] == valid_picks['winner_ATS']).astype(int)
-        ),
-        np.nan  # NaN for incomplete games
-    )
-
-    # Add a status column for conditional styling
-    valid_picks['status'] = valid_picks.apply(
-        lambda row: 'correct' if row['points_won'] > 0 else (
-            'incorrect' if row['points_won'] == 0 else 'pending'
-        ),
-        axis=1
-    )
-
-    # Prepare data for Dash display
-    game_info = wc_results[['game', 'away', 'home', 'homeline', 'awaypts', 'homepts', 'winner_ATS']]
-    player_scores = valid_picks.groupby('name')['points_won'].sum().reset_index(name='total_points')
-    player_scores = player_scores.merge(
-        player_confidence[['name', 'remaining_conf']],
-        on='name',
-        how='left'
-    )
-    player_scores['remaining_conf'] = player_scores['remaining_conf'].apply(lambda x: ', '.join(map(str, x)))
-
-    # Sort player_scores by total_points descending
-    player_scores = player_scores.sort_values(by='total_points', ascending=False)
-
-    # Create a column with pick and confidence formatted together
-    valid_picks['pick_with_conf'] = valid_picks.apply(
-        lambda row: f"{row['pick']} ({row['confidence']})" if pd.notnull(row['confidence']) else "-",
-        axis=1
-    )
-
-    # Pivot the table with formatted pick and confidence
-    picks_results_pivot = valid_picks.pivot(
-        index='name',
-        columns='game',
-        values='pick_with_conf'
-    )
-
-    # Pivot the table with statuses for conditional styling
-    status_pivot = valid_picks.pivot(
-        index='name',
-        columns='game',
-        values='status'
-    )
-
-    picks_results_pivot.fillna('-', inplace=True)  # Placeholder for unmade picks
-
-    # Merge status into picks_results_pivot for conditional styling
-    picks_results_pivot_with_status = picks_results_pivot.copy()
-    for col in status_pivot.columns:
-        picks_results_pivot_with_status[col + '_status'] = status_pivot[col]
-
-    return game_info, player_scores, picks_results_pivot_with_status
+    return valid_picks
 
 # Initialize Dash app
 app = dash.Dash(__name__)
