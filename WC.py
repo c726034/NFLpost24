@@ -179,11 +179,14 @@ def main():
 
     # Calculate total points
     valid_picks_completed = valid_picks_completed.merge(
-        game_info[['game', 'winner_ATS']].dropna(subset=['winner_ATS']), on='game', how='left'
+        game_info[['game', 'winner_ATS']].dropna(subset=['winner_ATS']), on='game', how='left', suffixes=('', '_second_merge')
     )
 
+    # Drop duplicate winner_ATS columns, keeping the first
+    valid_picks_completed = valid_picks_completed.drop(columns=['winner_ATS_second_merge'])
+
     # Debugging: Ensure winner_ATS exists in valid_picks_completed
-    print("Debug: Columns in valid_picks_completed after second merge:", valid_picks_completed.columns)
+    print("Debug: Columns in valid_picks_completed after resolving merge conflicts:", valid_picks_completed.columns)
 
     valid_picks_completed['correct'] = valid_picks_completed['pick'] == valid_picks_completed['winner_ATS']
     valid_picks_completed['points'] = valid_picks_completed['confidence'] * valid_picks_completed['correct']
