@@ -194,6 +194,9 @@ def main():
         axis=1
     )
 
+    # Debugging step: Print status assignment and pivot contents
+    print(valid_picks[['game', 'pick', 'winner_ATS', 'status']].head())
+
     picks_results_pivot_with_status = valid_picks.pivot(
         index='name',
         columns='game',
@@ -205,6 +208,9 @@ def main():
         columns='game',
         values='status'
     )
+
+    print("Status Pivot:")
+    print(status_pivot.head())
 
     return game_info, player_scores, picks_results_pivot_with_status, status_pivot
 
