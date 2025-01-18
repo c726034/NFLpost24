@@ -114,6 +114,17 @@ def main():
         .apply(lambda group: group.loc[group['pick'].notna()].iloc[-1] if group['pick'].notna().any() else group.iloc[-1])
         .reset_index(drop=True)
     )
+
+    # Update logic to prioritize non-blank entries
+    valid_picks = (
+        df_merged
+        .loc[df_merged['timestamp'] <= df_merged['deadline']]
+        .sort_values(by=['timestamp'])
+        .groupby(['name', 'game'], as_index=False)
+        .apply(lambda group: group.loc[group['pick'].notna()].iloc[-1] if not group['pick'].isna().all() else group.iloc[-1])
+        .reset_index(drop=True)
+    )
+
     valid_picks = valid_picks.dropna(subset=['confidence'])
     valid_picks = valid_picks[valid_picks['confidence'].apply(lambda x: isinstance(x, int))]
 
