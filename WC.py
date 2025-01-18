@@ -94,7 +94,7 @@ def main():
     df_merged = pd.merge(picks_long, conf_long, on=['timestamp', 'name', 'game'])
 
     # Scrub pick data to extract only the team name
-    df_merged['pick'] = df_merged['pick'].str.extract(r'^(\w+)')
+    df_merged['pick'] = df_merged['pick'].str.extract(r'^\w+')
 
     # Assign deadline based on the game
     df_merged['deadline'] = df_merged['game'].map(game_deadlines)
@@ -137,9 +137,9 @@ def main():
 
     valid_picks = valid_picks.drop(columns=['game_order'])
 
-    # Filter picks for Wild Card games only
-    wild_card_games = ['afc1', 'afc2', 'afc3', 'nfc1', 'nfc2', 'nfc3']
-    valid_picks_wc = valid_picks[valid_picks['game'].isin(wild_card_games)]
+    # Filter picks for games where the deadline has passed
+    now = pd.Timestamp.now()
+    valid_picks = valid_picks[valid_picks['deadline'] <= now]
 
     # Prepare game_info
     game_info = pd.DataFrame({
@@ -171,7 +171,7 @@ def main():
 
     # Calculate remaining confidence points as a list
     remaining_conf = {}
-    for name, group in valid_picks_wc.groupby('name'):
+    for name, group in valid_picks.groupby('name'):
         used = set(group['confidence'])
         remaining_conf[name] = [i for i in range(1, 14) if i not in used]
 
