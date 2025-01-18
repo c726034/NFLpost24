@@ -157,6 +157,13 @@ def main():
     if 'winner_ATS' not in game_info.columns:
         game_info['winner_ATS'] = None
 
+    # Merge winner_ATS into valid_picks
+    valid_picks = valid_picks.merge(
+        game_info[['game', 'winner_ATS']], 
+        on='game', 
+        how='left'
+    )
+
     # Prepare player_scores
     total_conf_points = 78  # Adjust this value based on the game rules
 
