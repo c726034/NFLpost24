@@ -137,6 +137,10 @@ def main():
 
     valid_picks = valid_picks.drop(columns=['game_order'])
 
+    # Filter picks for Wild Card games only
+    wild_card_games = ['afc1', 'afc2', 'afc3', 'nfc1', 'nfc2', 'nfc3']
+    valid_picks_wc = valid_picks[valid_picks['game'].isin(wild_card_games)]
+
     # Prepare game_info
     game_info = pd.DataFrame({
         "game": ["afc1", "afc2", "afc3", "nfc1", "nfc2", "nfc3", "afc4", "nfc4", "nfc5", "afc5"],
@@ -150,8 +154,18 @@ def main():
 
     # Prepare player_scores
     total_conf_points = 78  # Adjust this value based on the game rules
-    player_scores = valid_picks.groupby('name')['confidence'].sum().reset_index(name='total_points')
-    player_scores['remaining_conf'] = total_conf_points - player_scores['total_points']
+    player_scores = valid_picks_wc.groupby('name')['confidence'].sum().reset_index(name='total_points')
+
+    # Calculate remaining confidence points as a list
+    remaining_conf = {}
+    for name, group in valid_picks_wc.groupby('name'):
+        used = set(group['confidence'])
+        remaining_conf[name] = [i for i in range(1, 14) if i not in used]
+
+    player_scores['remaining_conf'] = player_scores['name'].map(remaining_conf).apply(lambda x: ", ".join(map(str, x)))
+
+    # Sort player_scores by total_points descending
+    player_scores = player_scores.sort_values(by='total_points', ascending=False)
 
     # Prepare picks_results_pivot_with_status
     valid_picks['display'] = valid_picks.apply(
