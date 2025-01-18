@@ -105,10 +105,15 @@ def main():
     # Sort 
     df_merged.sort_values(by=['game', 'name', 'timestamp'], inplace=True)
 
-    # Filter to valid picks
-    valid_picks = df_merged[df_merged['timestamp'] <= df_merged['deadline']]
-    valid_picks = valid_picks[valid_picks['pick'] != '']
-    valid_picks = valid_picks.sort_values(by=['timestamp']).groupby(['name', 'game']).tail(1)
+    # Filter to valid picks, ensuring blanks do not overwrite earlier entries
+    valid_picks = (
+        df_merged
+        .loc[df_merged['timestamp'] <= df_merged['deadline']]
+        .sort_values(by=['timestamp'])
+        .groupby(['name', 'game'], as_index=False)
+        .apply(lambda group: group.loc[group['pick'].notna()].iloc[-1] if group['pick'].notna().any() else group.iloc[0])
+        .reset_index(drop=True)
+    )
     valid_picks = valid_picks.dropna(subset=['confidence'])
     valid_picks = valid_picks[valid_picks['confidence'].apply(lambda x: isinstance(x, int))]
 
