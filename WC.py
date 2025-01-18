@@ -149,12 +149,25 @@ def main():
         "homeline": [3, -9.5, -8.5, -4.5, -3, 2.5, -8.5, -9.5, -6.5, 1.5],
         "awaypts": [12, 14, 7, 10, 23, 9, None, None, None, None],
         "homepts": [32, 28, 31, 22, 20, 27, None, None, None, None],
-        "winner_ATS": ["Texans", "Ravens", "Bills", "Eagles", "Commanders", "Rams", None, None, None, None]
+        "winner_ATS": ["Texans", "Ravens", "Bills", "Eagles", "Commanders", "Rams", None, None, None, None],
+        "complete": [1, 1, 1, 1, 1, 1, 0, 0, 0, 0]
     })
 
     # Prepare player_scores
     total_conf_points = 78  # Adjust this value based on the game rules
-    player_scores = valid_picks_wc.groupby('name')['confidence'].sum().reset_index(name='total_points')
+
+    # Filter valid picks only for completed games
+    completed_games = game_info[game_info['complete'] == 1]['game'].tolist()
+    valid_picks_completed = valid_picks[valid_picks['game'].isin(completed_games)]
+
+    # Calculate total points
+    valid_picks_completed = valid_picks_completed.merge(
+        game_info[['game', 'winner_ATS']], on='game', how='left'
+    )
+    valid_picks_completed['correct'] = valid_picks_completed['pick'] == valid_picks_completed['winner_ATS']
+    valid_picks_completed['points'] = valid_picks_completed['confidence'] * valid_picks_completed['correct']
+
+    player_scores = valid_picks_completed.groupby('name')['points'].sum().reset_index(name='total_points')
 
     # Calculate remaining confidence points as a list
     remaining_conf = {}
