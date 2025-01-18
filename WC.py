@@ -137,7 +137,23 @@ def main():
 
     valid_picks = valid_picks.drop(columns=['game_order'])
 
-    return valid_picks
+    # Prepare game_info
+    game_info = pd.DataFrame({
+        "game": list(game_deadlines.keys()),
+        "deadline": list(game_deadlines.values())
+    })
+
+    # Prepare player_scores
+    player_scores = valid_picks.groupby('name')['confidence'].sum().reset_index(name='total_points')
+
+    # Prepare picks_results_pivot_with_status
+    picks_results_pivot_with_status = valid_picks.pivot(
+        index='name',
+        columns='game',
+        values='confidence'
+    ).fillna('-')
+
+    return game_info, player_scores, picks_results_pivot_with_status
 
 # Initialize Dash app
 app = dash.Dash(__name__)
