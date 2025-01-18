@@ -137,14 +137,15 @@ def main():
 
     valid_picks = valid_picks.drop(columns=['game_order'])
 
-    # Prepare game_info (add placeholder columns for additional clarity)
+    # Prepare game_info
     game_info = pd.DataFrame({
-        "game": list(game_deadlines.keys()),
-        "deadline": list(game_deadlines.values()),
-        "away": ["TBD"] * len(game_deadlines),
-        "home": ["TBD"] * len(game_deadlines),
-        "winner_ATS": ["TBD"] * len(game_deadlines),
-        "complete": [0] * len(game_deadlines)
+        "game": ["afc1", "afc2", "afc3", "nfc1", "nfc2", "nfc3", "afc4", "nfc4", "nfc5", "afc5"],
+        "away": ["Chargers", "Steelers", "Broncos", "Packers", "Commanders", "Vikings", "Texans", "Commanders", "Rams", "Ravens"],
+        "home": ["Texans", "Ravens", "Bills", "Eagles", "Bucs", "Rams", "Chiefs", "Lions", "Eagles", "Bills"],
+        "homeline": [3, -9.5, -8.5, -4.5, -3, 2.5, -8.5, -9.5, -6.5, 1.5],
+        "awaypts": [12, 14, 7, 10, 23, 9, None, None, None, None],
+        "homepts": [32, 28, 31, 22, 20, 27, None, None, None, None],
+        "winner_ATS": ["Texans", "Ravens", "Bills", "Eagles", "Commanders", "Rams", None, None, None, None]
     })
 
     # Prepare player_scores
