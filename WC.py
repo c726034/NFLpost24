@@ -137,20 +137,30 @@ def main():
 
     valid_picks = valid_picks.drop(columns=['game_order'])
 
-    # Prepare game_info
+    # Prepare game_info (add placeholder columns for additional clarity)
     game_info = pd.DataFrame({
         "game": list(game_deadlines.keys()),
-        "deadline": list(game_deadlines.values())
+        "deadline": list(game_deadlines.values()),
+        "away": ["TBD"] * len(game_deadlines),
+        "home": ["TBD"] * len(game_deadlines),
+        "winner_ATS": ["TBD"] * len(game_deadlines),
+        "complete": [0] * len(game_deadlines)
     })
 
     # Prepare player_scores
+    total_conf_points = 78  # Adjust this value based on the game rules
     player_scores = valid_picks.groupby('name')['confidence'].sum().reset_index(name='total_points')
+    player_scores['remaining_conf'] = total_conf_points - player_scores['total_points']
 
     # Prepare picks_results_pivot_with_status
+    valid_picks['display'] = valid_picks.apply(
+        lambda row: f"{row['pick']} ({row['confidence']})" if row['confidence'] > 0 else row['pick'], axis=1
+    )
+
     picks_results_pivot_with_status = valid_picks.pivot(
         index='name',
         columns='game',
-        values='confidence'
+        values='display'
     ).fillna('-')
 
     return game_info, player_scores, picks_results_pivot_with_status
