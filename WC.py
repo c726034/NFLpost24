@@ -262,7 +262,7 @@ app.layout = html.Div([
     html.H2("Player Picks and Points"),
     dash_table.DataTable(
         data=picks_results_pivot_with_status.reset_index().to_dict('records'),
-        columns=[{"name": i, "id": i} for i in picks_results_pivot_with_status.reset_index().columns],
+        columns=[{"name": i, "id": i} for i in picks_results_pivot_with_status.reset_index().columns if '_status' not in i],
         style_table={'overflowX': 'auto'},
         style_cell={'textAlign': 'center', 'padding': '10px'},
         style_header={'backgroundColor': 'lightblue', 'fontWeight': 'bold'},
