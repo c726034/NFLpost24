@@ -164,6 +164,9 @@ def main():
         how='left'
     )
 
+    # Debugging: Ensure winner_ATS exists in valid_picks
+    print("Debug: Columns in valid_picks after merge:", valid_picks.columns)
+
     # Prepare player_scores
     total_conf_points = 78  # Adjust this value based on the game rules
 
@@ -171,10 +174,17 @@ def main():
     completed_games = game_info[game_info['complete'] == 1]['game'].tolist()
     valid_picks_completed = valid_picks[valid_picks['game'].isin(completed_games)]
 
+    # Debugging: Check the content of valid_picks_completed
+    print("Debug: Columns in valid_picks_completed:", valid_picks_completed.columns)
+
     # Calculate total points
     valid_picks_completed = valid_picks_completed.merge(
         game_info[['game', 'winner_ATS']].dropna(subset=['winner_ATS']), on='game', how='left'
     )
+
+    # Debugging: Ensure winner_ATS exists in valid_picks_completed
+    print("Debug: Columns in valid_picks_completed after second merge:", valid_picks_completed.columns)
+
     valid_picks_completed['correct'] = valid_picks_completed['pick'] == valid_picks_completed['winner_ATS']
     valid_picks_completed['points'] = valid_picks_completed['confidence'] * valid_picks_completed['correct']
 
