@@ -153,6 +153,10 @@ def main():
         "complete": [1, 1, 1, 1, 1, 1, 0, 0, 0, 0]
     })
 
+    # Ensure 'winner_ATS' column exists before merge
+    if 'winner_ATS' not in game_info.columns:
+        game_info['winner_ATS'] = None
+
     # Prepare player_scores
     total_conf_points = 78  # Adjust this value based on the game rules
 
@@ -162,7 +166,7 @@ def main():
 
     # Calculate total points
     valid_picks_completed = valid_picks_completed.merge(
-        game_info[['game', 'winner_ATS']], on='game', how='left'
+        game_info[['game', 'winner_ATS']].dropna(subset=['winner_ATS']), on='game', how='left'
     )
     valid_picks_completed['correct'] = valid_picks_completed['pick'] == valid_picks_completed['winner_ATS']
     valid_picks_completed['points'] = valid_picks_completed['confidence'] * valid_picks_completed['correct']
@@ -186,7 +190,7 @@ def main():
     )
 
     valid_picks['status'] = valid_picks.apply(
-        lambda row: "correct" if row['pick'] == row['winner_ATS'] else "incorrect" if pd.notna(row['winner_ATS']) else "pending",
+        lambda row: "correct" if row['pick'] == row.get('winner_ATS', None) else "incorrect" if pd.notna(row.get('winner_ATS', None)) else "pending",
         axis=1
     )
 
@@ -268,4 +272,3 @@ app.layout = html.Div([
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8000))  # Default to 8000 if PORT is not set
     app.run_server(debug=True, host='0.0.0.0', port=port)
-#comment
