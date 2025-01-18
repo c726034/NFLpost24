@@ -185,19 +185,30 @@ def main():
         lambda row: f"{row['pick']} ({row['confidence']})" if row['confidence'] > 0 else row['pick'], axis=1
     )
 
+    valid_picks['status'] = valid_picks.apply(
+        lambda row: "correct" if row['pick'] == row['winner_ATS'] else "incorrect" if pd.notna(row['winner_ATS']) else "pending",
+        axis=1
+    )
+
     picks_results_pivot_with_status = valid_picks.pivot(
         index='name',
         columns='game',
         values='display'
     ).fillna('-')
 
-    return game_info, player_scores, picks_results_pivot_with_status
+    status_pivot = valid_picks.pivot(
+        index='name',
+        columns='game',
+        values='status'
+    )
+
+    return game_info, player_scores, picks_results_pivot_with_status, status_pivot
 
 # Initialize Dash app
 app = dash.Dash(__name__)
 
 # Call main and unpack returned values
-game_info, player_scores, picks_results_pivot_with_status = main()
+game_info, player_scores, picks_results_pivot_with_status, status_pivot = main()
 
 app.layout = html.Div([
     html.H1("NFL Playoff Contest Results"),
